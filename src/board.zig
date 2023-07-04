@@ -156,97 +156,84 @@ const Board = struct {
         self.fiftyMove = 0;
         self.positionKey = 0;
     }
+
+    // String Return string representing the current board (from the stored bitboards)
+    fn stringify(self: Board) []const u8 {
+        var position: [8][8][]const u8 = undefined;
+
+        for (0..64) |i| {
+            position[i / 8][i % 8] = switch (self.position[i]) {
+                BitBoardIdx.WP => "P",
+                BitBoardIdx.WN => "N",
+                BitBoardIdx.WB => "B",
+                BitBoardIdx.WR => "R",
+                BitBoardIdx.WQ => "Q",
+                BitBoardIdx.WK => "K",
+                BitBoardIdx.BP => "p",
+                BitBoardIdx.BN => "n",
+                BitBoardIdx.BB => "b",
+                BitBoardIdx.BR => "r",
+                BitBoardIdx.BQ => "q",
+                BitBoardIdx.BK => "k",
+                else => ".",
+            };
+        }
+
+        // var positionStr string
+        // positionStr += "\n"
+        // for idx, rank := range position {
+        // 	positionStr += fmt.Sprintf(" %d  ", (8 - idx))
+        // 	for _, file := range rank {
+        // 		positionStr += fmt.Sprintf(" %s ", file)
+        // 	}
+        // 	positionStr += "\n"
+        // }
+        // positionStr += "\n     "
+        // startFileIdx := "A"[0]
+        // for i := startFileIdx; i < startFileIdx+8; i++ {
+        // 	positionStr += fmt.Sprintf("%s  ", string(i))
+        // }
+        // positionStr += fmt.Sprintf("\n")
+
+        // // ---
+        // positionStr += fmt.Sprintf("side:%c\n", SideChar[self.Side])
+
+        // enPassantFile := "-"
+        // if self.bitboards[EP] != 0 {
+        // 	enPassantFile = strconv.Itoa(bits.TrailingZeros64(self.bitboards[EP]))
+        // }
+        // positionStr += fmt.Sprintf("enPasFile:%s\n", enPassantFile)
+
+        // // Compute castling permissions
+        // wKCA := "-"
+        // if self.castlePermissions&WhiteKingCastling != 0 {
+        // 	wKCA = "K"
+        // }
+
+        // wQCA := "-"
+        // if self.castlePermissions&WhiteQueenCastling != 0 {
+        // 	wQCA = "Q"
+        // }
+
+        // bKCA := "-"
+        // if self.castlePermissions&BlackKingCastling != 0 {
+        // 	bKCA = "k"
+        // }
+
+        // bQCA := "-"
+        // if self.castlePermissions&BlackQueenCastling != 0 {
+        // 	bQCA = "q"
+        // }
+
+        // positionStr += fmt.Sprintf("castle:%s%s%s%s\n", wKCA, wQCA, bKCA, bQCA)
+        // positionStr += fmt.Sprintf("PosKey:%d\n", self.positionKey)
+
+        // // ---
+
+        // return positionStr
+    }
 };
 
-// // String Return string representing the current board (from the stored bitboards)
-// func (board *Board) String() string {
-// 	var position [8][8]string
-//
-// 	for i := 0; i < 64; i++ {
-// 		if board.position[i] == WP {
-// 			position[i/8][i%8] = "P"
-// 		} else if board.position[i] == WN {
-// 			position[i/8][i%8] = "N"
-// 		} else if board.position[i] == WB {
-// 			position[i/8][i%8] = "B"
-// 		} else if board.position[i] == WR {
-// 			position[i/8][i%8] = "R"
-// 		} else if board.position[i] == WQ {
-// 			position[i/8][i%8] = "Q"
-// 		} else if board.position[i] == WK {
-// 			position[i/8][i%8] = "K"
-// 		} else if board.position[i] == BP {
-// 			position[i/8][i%8] = "p"
-// 		} else if board.position[i] == BN {
-// 			position[i/8][i%8] = "n"
-// 		} else if board.position[i] == BB {
-// 			position[i/8][i%8] = "b"
-// 		} else if board.position[i] == BR {
-// 			position[i/8][i%8] = "r"
-// 		} else if board.position[i] == BQ {
-// 			position[i/8][i%8] = "q"
-// 		} else if board.position[i] == BK {
-// 			position[i/8][i%8] = "k"
-// 		} else {
-// 			position[i/8][i%8] = "."
-// 		}
-// 	}
-//
-// 	var positionStr string
-// 	positionStr += "\n"
-// 	for idx, rank := range position {
-// 		positionStr += fmt.Sprintf(" %d  ", (8 - idx))
-// 		for _, file := range rank {
-// 			positionStr += fmt.Sprintf(" %s ", file)
-// 		}
-// 		positionStr += "\n"
-// 	}
-// 	positionStr += "\n     "
-// 	startFileIdx := "A"[0]
-// 	for i := startFileIdx; i < startFileIdx+8; i++ {
-// 		positionStr += fmt.Sprintf("%s  ", string(i))
-// 	}
-// 	positionStr += fmt.Sprintf("\n")
-//
-//
-// 	// ---
-// 	positionStr += fmt.Sprintf("side:%c\n", SideChar[board.Side])
-//
-// 	enPassantFile := "-"
-// 	if board.bitboards[EP] != 0 {
-// 		enPassantFile = strconv.Itoa(bits.TrailingZeros64(board.bitboards[EP]))
-// 	}
-// 	positionStr += fmt.Sprintf("enPasFile:%s\n", enPassantFile)
-//
-// 	// Compute castling permissions
-// 	wKCA := "-"
-// 	if board.castlePermissions&WhiteKingCastling != 0 {
-// 		wKCA = "K"
-// 	}
-//
-// 	wQCA := "-"
-// 	if board.castlePermissions&WhiteQueenCastling != 0 {
-// 		wQCA = "Q"
-// 	}
-//
-// 	bKCA := "-"
-// 	if board.castlePermissions&BlackKingCastling != 0 {
-// 		bKCA = "k"
-// 	}
-//
-// 	bQCA := "-"
-// 	if board.castlePermissions&BlackQueenCastling != 0 {
-// 		bQCA = "q"
-// 	}
-//
-// 	positionStr += fmt.Sprintf("castle:%s%s%s%s\n", wKCA, wQCA, bKCA, bQCA)
-// 	positionStr += fmt.Sprintf("PosKey:%d\n", board.positionKey)
-//
-// 	// ---
-//
-//
-// 	return positionStr
-// }
 //
 // // UpdateBitMasks Updates all move generation/making related bit masks
 // func (board *Board) UpdateBitMasks() {
