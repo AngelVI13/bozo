@@ -185,57 +185,55 @@ const Board = struct {
         var positionStr: []const u8 = "\n";
         for (position, 0..position.len) |rank, idx| {
             {
-                positionStr = try std.fmt.allocPrint(alloc, "{s} {d} ", .{positionStr, 8 - idx});
+                positionStr = try std.fmt.allocPrint(alloc, "{s} {d} ", .{ positionStr, 8 - idx });
             }
             for (rank) |file| {
                 {
-                    positionStr = try std.fmt.allocPrint(alloc, "{s} {s} ", .{positionStr, file});
+                    positionStr = try std.fmt.allocPrint(alloc, "{s} {s} ", .{ positionStr, file });
                 }
             }
             positionStr = try std.fmt.allocPrint(alloc, "{s}\n", .{positionStr});
         }
 
-        // positionStr += "\n     "
-        // startFileIdx := "A"[0]
-        // for i := startFileIdx; i < startFileIdx+8; i++ {
-        // 	positionStr += fmt.Sprintf("%s  ", string(i))
-        // }
-        // positionStr += fmt.Sprintf("\n")
+        positionStr = try std.fmt.allocPrint(alloc, "{s}\n    ", .{positionStr});
+        const startFileIdx: u8 = 'A';
+        inline for (startFileIdx..startFileIdx + 8) |i| {
+            positionStr = try std.fmt.allocPrint(alloc, "{s}{c}  ", .{ positionStr, @as(u8, i) });
+        }
+        positionStr = try std.fmt.allocPrint(alloc, "{s}\n", .{positionStr});
 
-        // // ---
-        // positionStr += fmt.Sprintf("side:%c\n", SideChar[self.Side])
+        // ---
+        positionStr = try std.fmt.allocPrint(alloc, "{s}side:{c}\n", .{ positionStr, SideChar[@enumToInt(self.Side)] });
 
-        // enPassantFile := "-"
-        // if self.bitboards[EP] != 0 {
-        // 	enPassantFile = strconv.Itoa(bits.TrailingZeros64(self.bitboards[EP]))
-        // }
-        // positionStr += fmt.Sprintf("enPasFile:%s\n", enPassantFile)
+        var enPassantFile: u8 = '-';
+        if (self.bitboards.get(.EP) != 0) {
+            enPassantFile = @ctz(self.bitboards.get(.EP));
+        }
+        positionStr = try std.fmt.allocPrint(alloc, "{s}enPasFile:{c}\n", .{ positionStr, enPassantFile });
 
-        // // Compute castling permissions
-        // wKCA := "-"
-        // if self.castlePermissions&WhiteKingCastling != 0 {
-        // 	wKCA = "K"
-        // }
+        // Compute castling permissions
+        var wKCA: u8 = '-';
+        if (self.castlePermissions&WhiteKingCastling != 0) {
+            wKCA = 'K';
+        }
 
-        // wQCA := "-"
-        // if self.castlePermissions&WhiteQueenCastling != 0 {
-        // 	wQCA = "Q"
-        // }
+        var wQCA: u8 = '-';
+        if (self.castlePermissions&WhiteQueenCastling != 0) {
+            wQCA = 'Q';
+        }
 
-        // bKCA := "-"
-        // if self.castlePermissions&BlackKingCastling != 0 {
-        // 	bKCA = "k"
-        // }
+        var bKCA: u8 = '-';
+        if (self.castlePermissions&BlackKingCastling != 0) {
+            bKCA = 'k';
+        }
 
-        // bQCA := "-"
-        // if self.castlePermissions&BlackQueenCastling != 0 {
-        // 	bQCA = "q"
-        // }
+        var bQCA: u8 = '-';
+        if (self.castlePermissions&BlackQueenCastling != 0) {
+            bQCA = 'q';
+        }
 
-        // positionStr += fmt.Sprintf("castle:%s%s%s%s\n", wKCA, wQCA, bKCA, bQCA)
-        // positionStr += fmt.Sprintf("PosKey:%d\n", self.positionKey)
-
-        // // ---
+        positionStr = try std.fmt.allocPrint(alloc ,"{s}castle:{c}{c}{c}{c}\n", .{positionStr, wKCA, wQCA, bKCA, bQCA});
+        positionStr = try std.fmt.allocPrint(alloc, "{s}PosKey:{d}\n", .{positionStr, self.positionKey});
 
         return positionStr;
     }
