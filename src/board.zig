@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 // StartingPosition 8x8 representation of normal chess starting position
 const StartingPosition: []const u8 = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -125,12 +126,12 @@ const Undo = struct {
 
 // Board Struct to represent the chess board
 const Board = struct {
-    position: [BoardSquareNum]u8, // var to keep track of all pieces on the board
-    bitboards: [BitBoardIdx.MAX]u64, // 0- empty, 1-12 pieces WP-BK, 13 - en passant
-    stateBoards: [StateBoardIdx.MAX]u64, // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
+    position: [BoardSquareNum]BitBoardIdx, // var to keep track of all pieces on the board
+    bitboards: std.EnumArray(BitBoardIdx, u64), // 0- empty, 1-12 pieces WP-BK, 13 - en passant
+    stateBoards: std.EnumArray(StateBoardIdx, u64), // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
     Side: Color,
     castlePermissions: u8,
-    material: [2]u32, // material scores for black and white
+    material: std.EnumArray(Color, u32), // material scores for black and white
     ply: u16, // how many half moves have been made
     fiftyMove: u8, // how many moves from the fifty move rule have been made
     positionKey: u64, // position key is a unique key stored for each position (used to keep track of 3fold repetition)
@@ -138,27 +139,29 @@ const Board = struct {
 
     // Reset Resets current board
     pub fn reset(self: *Board) void {
-        inline for (0..BitBoardIdx.MAX) |i| {
-            self.bitboards[i] = 0;
+        var bbIterator = self.bitboards.iterator();
+        while (bbIterator.next()) |e| {
+            e.value.* = 0;
         }
         inline for (0..BoardSquareNum) |i| {
-            self.position[i] = 0;
+            self.position[i] = .NoPiece;
         }
-        inline for (0..StateBoardIdx.MAX) |i| {
-            self.stateBoards[i] = 0;
+        var sbIterator = self.stateBoards.iterator();
+        while (sbIterator.next()) |e| {
+            e.value.* = 0;
         }
 
         self.Side = Color.White;
         self.castlePermissions = 0;
-        self.material[Color.White] = 0;
-        self.material[Color.Black] = 0;
+        self.material.set(.White, 0);
+        self.material.set(.Black, 0);
         self.ply = 0;
         self.fiftyMove = 0;
         self.positionKey = 0;
     }
 
-    // String Return string representing the current board (from the stored bitboards)
-    fn stringify(self: Board) []const u8 {
+    // Return string representing the current board (from the stored bitboards)
+    pub fn stringify(self: Board, alloc: Allocator) ![]const u8 {
         var position: [8][8][]const u8 = undefined;
 
         for (0..64) |i| {
@@ -179,15 +182,19 @@ const Board = struct {
             };
         }
 
-        // var positionStr string
-        // positionStr += "\n"
-        // for idx, rank := range position {
-        // 	positionStr += fmt.Sprintf(" %d  ", (8 - idx))
-        // 	for _, file := range rank {
-        // 		positionStr += fmt.Sprintf(" %s ", file)
-        // 	}
-        // 	positionStr += "\n"
-        // }
+        var positionStr: []const u8 = "\n";
+        for (position, 0..position.len) |rank, idx| {
+            {
+                positionStr = try std.fmt.allocPrint(alloc, "{s} {d} ", .{positionStr, 8 - idx});
+            }
+            for (rank) |file| {
+                {
+                    positionStr = try std.fmt.allocPrint(alloc, "{s} {s} ", .{positionStr, file});
+                }
+            }
+            positionStr = try std.fmt.allocPrint(alloc, "{s}\n", .{positionStr});
+        }
+
         // positionStr += "\n     "
         // startFileIdx := "A"[0]
         // for i := startFileIdx; i < startFileIdx+8; i++ {
@@ -230,9 +237,27 @@ const Board = struct {
 
         // // ---
 
-        // return positionStr
+        return positionStr;
     }
 };
+
+pub fn new(alloc: Allocator) !void {
+    var b = Board{
+        .position = undefined,
+        .bitboards = std.EnumArray(BitBoardIdx, u64).initFill(0),
+        .stateBoards = std.EnumArray(StateBoardIdx, u64).initFill(0),
+        .Side = Color.White,
+        .castlePermissions = 0,
+        .material = std.EnumArray(Color, u32).initFill(0),
+        .ply = 0,
+        .fiftyMove = 0,
+        .positionKey = 0,
+        .history = undefined,
+    };
+    b.reset();
+    const txt = try b.stringify(alloc);
+    std.debug.print("\n{s}\n", .{txt});
+}
 
 //
 // // UpdateBitMasks Updates all move generation/making related bit masks
