@@ -7,7 +7,6 @@ pub fn main() !void {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    try board.new(alloc);
-    // b.reset();
-    // std.debug.print("\n{s}\n", .{try b.stringify()});
+    const b = board.new();
+    std.debug.print("\n{s}\n", .{try b.stringify(alloc)});
 }

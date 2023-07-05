@@ -241,7 +241,7 @@ const Board = struct {
     }
 };
 
-pub fn new(alloc: Allocator) !void {
+pub fn new() Board {
     var b = Board{
         .position = undefined,
         .bitboards = std.EnumArray(BitBoardIdx, u64).initFill(0),
@@ -255,8 +255,7 @@ pub fn new(alloc: Allocator) !void {
         .history = undefined,
     };
     b.reset();
-    const txt = try b.stringify(alloc);
-    std.debug.print("\n{s}\n", .{txt});
+    return b;
 }
 
 //
