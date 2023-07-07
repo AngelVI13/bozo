@@ -1,5 +1,6 @@
 const std = @import("std");
 const bitboard = @import("bitboard.zig");
+const move_gen = @import("move_generation.zig");
 const Allocator = std.mem.Allocator;
 
 const Errors = error{
@@ -149,18 +150,11 @@ pub const CastleKeysNum = WhiteKingCastling + WhiteQueenCastling + BlackKingCast
 // CastleKeys haskeys associated with castling rights
 pub var CastleKeys: [CastleKeysNum]u64 = undefined; // castling value ranges from 0-15 -> we need 16 hashkeys
 
-// FileMasks8 Array that holds bitmasks that select a given file based on the index of
-// the element i.e. index 0 selects File A, 1- FileB etc.
-pub var FileMasks8 = [8]u64{
-    0b00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001,
-    0b00000010_00000010_00000010_00000010_00000010_00000010_00000010_00000010,
-    0b00000100_00000100_00000100_00000100_00000100_00000100_00000100_00000100,
-    0b00001000_00001000_00001000_00001000_00001000_00001000_00001000_00001000,
-    0b00010000_00010000_00010000_00010000_00010000_00010000_00010000_00010000,
-    0b00100000_00100000_00100000_00100000_00100000_00100000_00100000_00100000,
-    0b01000000_01000000_01000000_01000000_01000000_01000000_01000000_01000000,
-    0b10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000,
-};
+// KnightMoves an array of bitboards indicating every square the knight can go to from a given board index
+pub var KnightMoves: [BoardSquareNum]u64 = undefined;
+
+// KingMoves an array of bitboards indicating every square the king can go to from a given board index
+pub var KingMoves: [BoardSquareNum]u64 = undefined;
 
 // Undo struct
 const Undo = struct {
@@ -361,10 +355,198 @@ const Board = struct {
                 return error.FileOutOfBounds;
             }
 
-            self.bitboards.set(.EP, FileMasks8[file]);
+            self.bitboards.set(.EP, move_gen.FileMasks8[file]);
             // hash en passant
             self.positionKey ^= PieceKeys[@enumToInt(BitBoardIdx.EP)][@ctz(self.bitboards.get(.EP))];
         }
+    }
+
+    // UpdateBitMasks Updates all move generation/making related bit masks
+    fn update_bitmasks(self: *Board) void {
+        if (self.Side == .White) {
+            self.stateBoards.set(.NotMyPieces, ~(self.bitboards.get(.WP) |
+                self.bitboards.get(.WN) |
+                self.bitboards.get(.WB) |
+                self.bitboards.get(.WR) |
+                self.bitboards.get(.WQ) |
+                self.bitboards.get(.WK) |
+                self.bitboards.get(.BK)));
+
+            self.stateBoards.set(.MyPieces, self.bitboards.get(.WP) |
+                self.bitboards.get(.WN) |
+                self.bitboards.get(.WB) |
+                self.bitboards.get(.WR) |
+                self.bitboards.get(.WQ));
+
+            self.stateBoards.set(.EnemyPieces, self.bitboards.get(.BP) |
+                self.bitboards.get(.BN) |
+                self.bitboards.get(.BB) |
+                self.bitboards.get(.BR) |
+                self.bitboards.get(.BQ));
+
+            self.stateBoards.set(.Occupied, self.bitboards.get(.WP) |
+                self.bitboards.get(.WN) |
+                self.bitboards.get(.WB) |
+                self.bitboards.get(.WR) |
+                self.bitboards.get(.WQ) |
+                self.bitboards.get(.WK) |
+                self.bitboards.get(.BP) |
+                self.bitboards.get(.BN) |
+                self.bitboards.get(.BB) |
+                self.bitboards.get(.BR) |
+                self.bitboards.get(.BQ) |
+                self.bitboards.get(.BK));
+
+            self.stateBoards.set(.EnemyRooksQueens, self.bitboards.get(.BQ) | self.bitboards.get(.BR));
+            self.stateBoards.set(.EnemyBishopsQueens, self.bitboards.get(.BQ) | self.bitboards.get(.BB));
+            self.stateBoards.set(.EnemyKnights, self.bitboards.get(.BN));
+            self.stateBoards.set(.EnemyPawns, self.bitboards.get(.BP));
+
+            self.stateBoards.set(.Empty, ~self.stateBoards.get(.Occupied));
+            self.stateBoards.set(.Unsafe, self.unsafeForWhite());
+        } else {
+            self.stateBoards.set(.NotMyPieces, ~(self.bitboards.get(.BP) |
+                self.bitboards.get(.BN) |
+                self.bitboards.get(.BB) |
+                self.bitboards.get(.BR) |
+                self.bitboards.get(.BQ) |
+                self.bitboards.get(.BK) |
+                self.bitboards.get(.WK)));
+
+            self.stateBoards.set(.MyPieces, self.bitboards.get(.BP) |
+                self.bitboards.get(.BN) |
+                self.bitboards.get(.BB) |
+                self.bitboards.get(.BR) |
+                self.bitboards.get(.BQ));
+
+            self.stateBoards.set(.EnemyPieces, self.bitboards.get(.WP) |
+                self.bitboards.get(.WN) |
+                self.bitboards.get(.WB) |
+                self.bitboards.get(.WR) |
+                self.bitboards.get(.WQ));
+
+            self.stateBoards.set(.Occupied, self.bitboards.get(.WP) |
+                self.bitboards.get(.WN) |
+                self.bitboards.get(.WB) |
+                self.bitboards.get(.WR) |
+                self.bitboards.get(.WQ) |
+                self.bitboards.get(.WK) |
+                self.bitboards.get(.BP) |
+                self.bitboards.get(.BN) |
+                self.bitboards.get(.BB) |
+                self.bitboards.get(.BR) |
+                self.bitboards.get(.BQ) |
+                self.bitboards.get(.BK));
+
+            self.stateBoards.set(.EnemyRooksQueens, self.bitboards.get(.WQ) | self.bitboards.get(.WR));
+            self.stateBoards.set(.EnemyBishopsQueens, self.bitboards.get(.WQ) | self.bitboards.get(.WB));
+            self.stateBoards.set(.EnemyKnights, self.bitboards.get(.WN));
+            self.stateBoards.set(.EnemyPawns, self.bitboards.get(.WP));
+
+            self.stateBoards.set(.Empty, ~self.stateBoards.get(.Occupied));
+            self.stateBoards.set(.Unsafe, self.unsafeForBlack());
+        }
+    }
+
+    pub fn unsafeForBlack(self: *Board) u64 {
+        var unsafe: u64 = 0;
+        // pawn
+        unsafe = ((self.bitboards.get(.WP) >> 7) & (~move_gen.FileA)); // pawn capture right
+        unsafe |= ((self.bitboards.get(.WP) >> 9) & (~move_gen.FileH)); // pawn capture left
+
+        var possibility: u64 = 0;
+        // knight
+        var wn = self.bitboards.get(.WN);
+        var i = wn & (~(wn - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = KnightMoves[iLocation];
+            unsafe |= possibility;
+            wn &= (~i);
+            i = wn & (~(wn - 1));
+        }
+
+        // sliding pieces
+        const occupiedExludingKing = self.stateBoards.get(.Occupied) ^ self.bitboards.get(.BK);
+        // bishop/queen
+        var qb = self.bitboards.get(.WQ) | self.bitboards.get(.WB);
+        i = qb & (~(qb - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = move_gen.diagonal_and_antidiagonal_moves(iLocation, occupiedExludingKing);
+            unsafe |= possibility;
+            qb &= (~i);
+            i = qb & (~(qb - 1));
+        }
+
+        // rook/queen
+        var qr = self.bitboards.get(.WQ) | self.bitboards.get(.WR);
+        i = qr & (~(qr - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = move_gen.horizontal_and_vertical_moves(iLocation, occupiedExludingKing);
+            unsafe |= possibility;
+            qr &= (~i);
+            i = qr & (~(qr - 1));
+        }
+
+        // king
+        const iLocation = @ctz(self.bitboards.get(.WK));
+        possibility = KingMoves[iLocation];
+        unsafe |= possibility;
+        return unsafe;
+    }
+
+    pub fn unsafeForWhite(self: *Board) u64 {
+        // pawn
+        var unsafe: u64 = ((self.bitboards.get(.BP) << 7) & (~move_gen.FileH)); // pawn capture right
+        unsafe |= ((self.bitboards.get(.BP) << 9) & (~move_gen.FileA)); // pawn capture left
+
+        var possibility: u64 = 0;
+        // knight
+        const bn = self.bitboards.get(.BN);
+        var i = bn & (~(bn - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = KnightMoves[iLocation];
+            unsafe |= possibility;
+            bn &= (~i);
+            i = bn & (~(bn - 1));
+        }
+
+        // sliding pieces
+        // when calculating unsafe squares for a given colour we need to exclude the
+        // current side's king because if an enemy queen is attacking our king,
+        // the squares behind the king are also unsafe, however, when the king is included
+        // geneation of unsafe squares will stop at the king and will not extend behind it
+        const occupiedExludingKing = self.stateBoards.get(.Occupied) ^ self.bitboards.get(.WK);
+        // bishop/queen
+        const qb = self.bitboards.get(.BQ) | self.bitboards.get(.BB);
+        i = qb & (~(qb - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = move_gen.diagonal_and_antidiagonal_moves(iLocation, occupiedExludingKing);
+            unsafe |= possibility;
+            qb &= (~i);
+            i = qb & (~(qb - 1));
+        }
+
+        // rook/queen
+        const qr = self.bitboards.get(.BQ) | self.bitboards.get(.BR);
+        i = qr & (~(qr - 1));
+        while (i != 0) {
+            const iLocation = @ctz(i);
+            possibility = move_gen.horizontal_and_vertical_moves(iLocation, occupiedExludingKing);
+            unsafe |= possibility;
+            qr &= (~i);
+            i = qr & (~(qr - 1));
+        }
+
+        // king
+        const iLocation = @ctz(self.bitboards.get(.BK));
+        possibility = KingMoves[iLocation];
+        unsafe |= possibility;
+        return unsafe;
     }
 };
 
@@ -384,93 +566,6 @@ pub fn new() Board {
     return b;
 }
 
-//
-// // UpdateBitMasks Updates all move generation/making related bit masks
-// func (board *Board) UpdateBitMasks() {
-// 	if board.Side == White {
-// 		board.stateBoards[NotMyPieces] = ^(board.bitboards[WP] |
-// 			board.bitboards[WN] |
-// 			board.bitboards[WB] |
-// 			board.bitboards[WR] |
-// 			board.bitboards[WQ] |
-// 			board.bitboards[WK] |
-// 			board.bitboards[BK])
-//
-// 		board.stateBoards[MyPieces] = (board.bitboards[WP] |
-// 			board.bitboards[WN] |
-// 			board.bitboards[WB] |
-// 			board.bitboards[WR] |
-// 			board.bitboards[WQ])
-//
-// 		board.stateBoards[EnemyPieces] = (board.bitboards[BP] |
-// 			board.bitboards[BN] |
-// 			board.bitboards[BB] |
-// 			board.bitboards[BR] |
-// 			board.bitboards[BQ])
-//
-// 		board.stateBoards[Occupied] = (board.bitboards[WP] |
-// 			board.bitboards[WN] |
-// 			board.bitboards[WB] |
-// 			board.bitboards[WR] |
-// 			board.bitboards[WQ] |
-// 			board.bitboards[WK] |
-// 			board.bitboards[BP] |
-// 			board.bitboards[BN] |
-// 			board.bitboards[BB] |
-// 			board.bitboards[BR] |
-// 			board.bitboards[BQ] |
-// 			board.bitboards[BK])
-//
-// 		board.stateBoards[EnemyRooksQueens] = (board.bitboards[BQ] | board.bitboards[BR])
-// 		board.stateBoards[EnemyBishopsQueens] = (board.bitboards[BQ] | board.bitboards[BB])
-// 		board.stateBoards[EnemyKnights] = board.bitboards[BN]
-// 		board.stateBoards[EnemyPawns] = board.bitboards[BP]
-//
-// 		board.stateBoards[Empty] = ^board.stateBoards[Occupied]
-// 		board.stateBoards[Unsafe] = board.unsafeForWhite()
-// 	} else {
-// 		board.stateBoards[NotMyPieces] = ^(board.bitboards[BP] |
-// 			board.bitboards[BN] |
-// 			board.bitboards[BB] |
-// 			board.bitboards[BR] |
-// 			board.bitboards[BQ] |
-// 			board.bitboards[BK] |
-// 			board.bitboards[WK])
-//
-// 		board.stateBoards[MyPieces] = (board.bitboards[BP] |
-// 			board.bitboards[BN] |
-// 			board.bitboards[BB] |
-// 			board.bitboards[BR] |
-// 			board.bitboards[BQ])
-//
-// 		board.stateBoards[EnemyPieces] = (board.bitboards[WP] |
-// 			board.bitboards[WN] |
-// 			board.bitboards[WB] |
-// 			board.bitboards[WR] |
-// 			board.bitboards[WQ])
-//
-// 		board.stateBoards[Occupied] = (board.bitboards[WP] |
-// 			board.bitboards[WN] |
-// 			board.bitboards[WB] |
-// 			board.bitboards[WR] |
-// 			board.bitboards[WQ] |
-// 			board.bitboards[WK] |
-// 			board.bitboards[BP] |
-// 			board.bitboards[BN] |
-// 			board.bitboards[BB] |
-// 			board.bitboards[BR] |
-// 			board.bitboards[BQ] |
-// 			board.bitboards[BK])
-//
-// 		board.stateBoards[EnemyRooksQueens] = (board.bitboards[WQ] | board.bitboards[WR])
-// 		board.stateBoards[EnemyBishopsQueens] = (board.bitboards[WQ] | board.bitboards[WB])
-// 		board.stateBoards[EnemyKnights] = board.bitboards[WN]
-// 		board.stateBoards[EnemyPawns] = board.bitboards[WP]
-//
-// 		board.stateBoards[Empty] = ^board.stateBoards[Occupied]
-// 		board.stateBoards[Unsafe] = board.unsafeForBlack()
-// 	}
-// }
 //
 // // GetMoves Returns a struct that holds all the possible moves for a given position
 // func (board *Board) GetMoves() (moveList MoveList) {
