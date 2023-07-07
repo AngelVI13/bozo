@@ -1,10 +1,11 @@
 const std = @import("std");
+const bitboard = @import("bitboard.zig");
 const Allocator = std.mem.Allocator;
 
 const Errors = error{
     FenError,
     UnknownSideToMove,
-        FileOutOfBounds,
+    FileOutOfBounds,
 };
 
 // StartingPosition 8x8 representation of normal chess starting position
@@ -151,14 +152,14 @@ pub var CastleKeys: [CastleKeysNum]u64 = undefined; // castling value ranges fro
 // FileMasks8 Array that holds bitmasks that select a given file based on the index of
 // the element i.e. index 0 selects File A, 1- FileB etc.
 pub var FileMasks8 = [8]u64{
-	0b00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001,
-	0b00000010_00000010_00000010_00000010_00000010_00000010_00000010_00000010,
-	0b00000100_00000100_00000100_00000100_00000100_00000100_00000100_00000100,
-	0b00001000_00001000_00001000_00001000_00001000_00001000_00001000_00001000,
-	0b00010000_00010000_00010000_00010000_00010000_00010000_00010000_00010000,
-	0b00100000_00100000_00100000_00100000_00100000_00100000_00100000_00100000,
-	0b01000000_01000000_01000000_01000000_01000000_01000000_01000000_01000000,
-	0b10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000,
+    0b00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001,
+    0b00000010_00000010_00000010_00000010_00000010_00000010_00000010_00000010,
+    0b00000100_00000100_00000100_00000100_00000100_00000100_00000100_00000100,
+    0b00001000_00001000_00001000_00001000_00001000_00001000_00001000_00001000,
+    0b00010000_00010000_00010000_00010000_00010000_00010000_00010000_00010000,
+    0b00100000_00100000_00100000_00100000_00100000_00100000_00100000_00100000,
+    0b01000000_01000000_01000000_01000000_01000000_01000000_01000000_01000000,
+    0b10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000,
 };
 
 // Undo struct
@@ -225,27 +226,8 @@ const Board = struct {
             };
         }
 
-        var positionStr: []const u8 = "\n";
-        for (position, 0..position.len) |rank, idx| {
-            {
-                positionStr = try std.fmt.allocPrint(alloc, "{s} {d} ", .{ positionStr, 8 - idx });
-            }
-            for (rank) |file| {
-                {
-                    positionStr = try std.fmt.allocPrint(alloc, "{s} {s} ", .{ positionStr, file });
-                }
-            }
-            positionStr = try std.fmt.allocPrint(alloc, "{s}\n", .{positionStr});
-        }
+        var positionStr = try bitboard.format_board(alloc, position);
 
-        positionStr = try std.fmt.allocPrint(alloc, "{s}\n    ", .{positionStr});
-        const startFileIdx: u8 = 'A';
-        inline for (startFileIdx..startFileIdx + 8) |i| {
-            positionStr = try std.fmt.allocPrint(alloc, "{s}{c}  ", .{ positionStr, @as(u8, i) });
-        }
-        positionStr = try std.fmt.allocPrint(alloc, "{s}\n", .{positionStr});
-
-        // ---
         positionStr = try std.fmt.allocPrint(alloc, "{s}side:{c}\n", .{ positionStr, SideChar[@enumToInt(self.Side)] });
 
         var enPassantFile: u8 = '-';
@@ -291,18 +273,13 @@ const Board = struct {
 
         while ((count < 64) and (char < fen_len)) {
             const t = fen[char];
-            std.debug.print("{c} ", .{t});
             switch (t) {
                 'p', 'r', 'n', 'b', 'k', 'q', 'P', 'R', 'N', 'B', 'K', 'Q' => {
-                // If we have a piece related char -> set the piece to corresponding value, i.e p -> BlackPawn
-                // TODO: how to convert char to string???
-                // TODO2: maybe replace PieceNotationMap with an [_]u8 and only specify the positions for the pieces
-                const pieceStr = @intToPtr([]const u8, t);
-                // std.debug.print("{s} ", .{pieceStr});
-                if (PieceNotationMap.get(pieceStr)) |p| {
-                    std.debug.print("{d} ", .{@enumToInt(p)});
-                    piece = p;
-                }
+                    var buf: [1]u8 = undefined;
+                    const pieceStr = try std.fmt.bufPrint(&buf, "{c}", .{t});
+                    if (PieceNotationMap.get(pieceStr)) |p| {
+                        piece = p;
+                    }
                 },
                 '1', '2', '3', '4', '5', '6', '7', '8' => {
                     // otherwise it must be a count of a number of empty squares
@@ -330,7 +307,6 @@ const Board = struct {
             const pieceBitboard = self.bitboards.get(piece);
             self.bitboards.set(piece, pieceBitboard | (@intCast(u64, 1) << @intCast(u6, count)));
             self.position[count] = piece;
-            std.debug.print("{d} {d}\n", .{@enumToInt(piece), count});
             self.positionKey ^= PieceKeys[@enumToInt(piece)][count];
             char += 1;
             count += 1;
@@ -374,46 +350,21 @@ const Board = struct {
 
         // AssertTrue(pos.castlePerm >= 0 && pos.castlePerm <= 15)
         // move to the en passant square related part of FEN
-        char +=1;
+        char += 1;
         newChar = fen[char];
 
         if (newChar != '-') {
-        	const file = newChar - 'a';
-        	char += 1;
+            const file = newChar - 'a';
+            char += 1;
 
-        	if (file < 0 or file > 7) {
-        		return error.FileOutOfBounds;
-        	}
+            if (file < 0 or file > 7) {
+                return error.FileOutOfBounds;
+            }
 
-        	self.bitboards.set(.EP, FileMasks8[file]);
-        	// hash en passant
-        	self.positionKey ^= PieceKeys[@enumToInt(BitBoardIdx.EP)][@ctz(self.bitboards.get(.EP))];
+            self.bitboards.set(.EP, FileMasks8[file]);
+            // hash en passant
+            self.positionKey ^= PieceKeys[@enumToInt(BitBoardIdx.EP)][@ctz(self.bitboards.get(.EP))];
         }
-    }
-
-    // GeneratePositionKey takes a position and calculates a unique hashkey for it
-    fn generate_position_key(self: *Board) u64 {
-        _ = self;
-        var hashKey: u64 = 0;
-        // for square, piece := range board.position {
-        // 	if piece != NoPiece {
-        // 		hashKey ^= PieceKeys[piece][square]
-        // 	}
-        // }
-        //
-        // if board.bitboards[EP] != 0 {
-        // 	// take bitboard of en passant file, select only the first rank, find which file it is
-        // 	enPassantFile := bits.TrailingZeros64(board.bitboards[EP])
-        // 	hashKey ^= PieceKeys[EP][enPassantFile]
-        // }
-
-        // if board.Side == White {
-        // 	hashKey ^= SideKey
-        // }
-
-        // hashKey ^= CastleKeys[board.castlePermissions]
-
-        return hashKey;
     }
 };
 

@@ -1,6 +1,7 @@
 const std = @import("std");
 const board = @import("board.zig");
 const hash = @import("hashkey.zig");
+const bitboard = @import("bitboard.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -22,7 +23,12 @@ test "parse_fen starting position" {
     try hash.init_hash_keys();
 
     var b = board.new();
+    try std.testing.expectEqual(b.positionKey, 0);
+
     try b.parse_fen(board.StartingPosition);
 
-    std.debug.print("]\n\n{s}\n", .{try b.stringify(alloc)});
+    std.debug.print("\n\n{s}\n", .{try b.stringify(alloc)});
+
+    try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WP));
+
 }
