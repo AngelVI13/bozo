@@ -16,11 +16,6 @@ pub fn main() !void {
 }
 
 test "parse_fen starting position" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const alloc = arena.allocator();
-    _ = alloc;
-
     try hash.init_hash_keys();
 
     var b = board.new();
@@ -28,18 +23,28 @@ test "parse_fen starting position" {
 
     try b.parse_fen(board.StartingPosition);
     try std.testing.expect(b.positionKey != 0);
+    try std.testing.expectEqual(b.Side, board.Color.White);
+    try std.testing.expectEqual(b.ply, 0);
+    try std.testing.expectEqual(b.fiftyMove, 0);
+    try std.testing.expect(b.castlePermissions & board.WhiteKingCastling != 0);
+    try std.testing.expect(b.castlePermissions & board.WhiteQueenCastling != 0);
+    try std.testing.expect(b.castlePermissions & board.BlackKingCastling != 0);
+    try std.testing.expect(b.castlePermissions & board.BlackQueenCastling != 0);
+}
 
-    // std.debug.print("\n\n{s}\n", .{try b.stringify(alloc)});
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WP));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WN));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WB));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WR));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WQ));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.WK));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BP));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BN));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BB));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BR));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BQ));
-    // try bitboard.draw(alloc, b.bitboards.get(board.BitBoardIdx.BK));
+test "parse_fen black to move" {
+    try hash.init_hash_keys();
+
+    var b = board.new();
+    try std.testing.expectEqual(b.positionKey, 0);
+
+    try b.parse_fen("r2qkbnr/ppp1p1pp/B1n1b3/3pPp2/8/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 5");
+    try std.testing.expect(b.positionKey != 0);
+    try std.testing.expectEqual(b.Side, board.Color.Black);
+    try std.testing.expectEqual(b.ply, 0);
+    try std.testing.expectEqual(b.fiftyMove, 0);
+    try std.testing.expect(b.castlePermissions & board.WhiteKingCastling == 0);
+    try std.testing.expect(b.castlePermissions & board.WhiteQueenCastling == 0);
+    try std.testing.expect(b.castlePermissions & board.BlackKingCastling != 0);
+    try std.testing.expect(b.castlePermissions & board.BlackQueenCastling != 0);
 }

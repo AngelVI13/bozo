@@ -102,7 +102,7 @@ const StateBoardIdx = enum(u8) {
 };
 
 // Defines for colours
-const Color = enum(u8) {
+pub const Color = enum(u8) {
     White,
     Black,
     Both,
@@ -133,10 +133,10 @@ const CastlePerm = [BoardSquareNum]u8{
 // The values are such that they each represent a bit from a 4 bit int value
 // for example if white can castle kingside and black can castle queenside
 // the 4 bit int value is going to be 1001
-const WhiteKingCastling: u8 = 1;
-const WhiteQueenCastling: u8 = 2;
-const BlackKingCastling: u8 = 4;
-const BlackQueenCastling: u8 = 8;
+pub const WhiteKingCastling: u8 = 1;
+pub const WhiteQueenCastling: u8 = 2;
+pub const BlackKingCastling: u8 = 4;
+pub const BlackQueenCastling: u8 = 8;
 
 // PieceKeys hashkeys for each piece for each possible position for the key
 pub var PieceKeys: [@enumToInt(BitBoardIdx.MAX)][BoardSquareNum]u64 = undefined;
