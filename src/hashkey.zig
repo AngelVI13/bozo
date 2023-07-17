@@ -1,6 +1,6 @@
 const std = @import("std");
 const board = @import("board.zig");
-const move_gen = @import("move_generation.zig");
+const defs = @import("move_defs.zig");
 
 // InitHashKeys initializes hashkeys for all pieces and possible positions, for castling rights, for side to move
 pub fn init_hash_keys() !void {
@@ -28,14 +28,14 @@ pub fn init_hash_keys() !void {
     for (0..board.BoardSquareNum) |i| {
         var possibility: u64 = 0;
         if (i > 18) {
-            possibility = move_gen.KnightSpan << @intCast(u6, (i - 18));
+            possibility = defs.KnightSpan << @intCast(u6, (i - 18));
         } else {
-            possibility = move_gen.KnightSpan >> @intCast(u6, (18 - i));
+            possibility = defs.KnightSpan >> @intCast(u6, (18 - i));
         }
         if (i % 8 < 4) {
-            possibility &= (~move_gen.FileGH);
+            possibility &= (~defs.FileGH);
         } else {
-            possibility &= (~move_gen.FileAB);
+            possibility &= (~defs.FileAB);
         }
         board.KnightMoves[i] = possibility;
     }
@@ -45,15 +45,15 @@ pub fn init_hash_keys() !void {
         var possibility: u64 = 0;
 
         if (i > 9) {
-            possibility = move_gen.KingSpan << @intCast(u6, (i - 9));
+            possibility = defs.KingSpan << @intCast(u6, (i - 9));
         } else {
-            possibility = move_gen.KingSpan >> @intCast(u6, (9 - i));
+            possibility = defs.KingSpan >> @intCast(u6, (9 - i));
         }
 
         if (i % 8 < 4) {
-            possibility &= (~move_gen.FileGH);
+            possibility &= (~defs.FileGH);
         } else {
-            possibility &= (~move_gen.FileAB);
+            possibility &= (~defs.FileAB);
         }
 
         board.KingMoves[i] = possibility;

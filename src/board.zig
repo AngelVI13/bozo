@@ -1,6 +1,7 @@
 const std = @import("std");
 const bitboard = @import("bitboard.zig");
 const move_gen = @import("move_generation.zig");
+const defs = @import("move_defs.zig");
 const Allocator = std.mem.Allocator;
 
 const Errors = error{
@@ -355,7 +356,7 @@ const Board = struct {
                 return error.FileOutOfBounds;
             }
 
-            self.bitboards.set(.EP, move_gen.FileMasks8[file]);
+            self.bitboards.set(.EP, defs.FileMasks8[file]);
             // hash en passant
             self.positionKey ^= PieceKeys[@enumToInt(BitBoardIdx.EP)][@ctz(self.bitboards.get(.EP))];
         }
@@ -451,8 +452,8 @@ const Board = struct {
     pub fn unsafeForBlack(self: *Board) u64 {
         var unsafe: u64 = 0;
         // pawn
-        unsafe = ((self.bitboards.get(.WP) >> 7) & (~move_gen.FileA)); // pawn capture right
-        unsafe |= ((self.bitboards.get(.WP) >> 9) & (~move_gen.FileH)); // pawn capture left
+        unsafe = ((self.bitboards.get(.WP) >> 7) & (~defs.FileA)); // pawn capture right
+        unsafe |= ((self.bitboards.get(.WP) >> 9) & (~defs.FileH)); // pawn capture left
 
         var possibility: u64 = 0;
         // knight
@@ -499,8 +500,8 @@ const Board = struct {
 
     pub fn unsafeForWhite(self: *Board) u64 {
         // pawn
-        var unsafe: u64 = ((self.bitboards.get(.BP) << 7) & (~move_gen.FileH)); // pawn capture right
-        unsafe |= ((self.bitboards.get(.BP) << 9) & (~move_gen.FileA)); // pawn capture left
+        var unsafe: u64 = ((self.bitboards.get(.BP) << 7) & (~defs.FileH)); // pawn capture right
+        unsafe |= ((self.bitboards.get(.BP) << 9) & (~defs.FileA)); // pawn capture left
 
         var possibility: u64 = 0;
         // knight
