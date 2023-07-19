@@ -171,7 +171,7 @@ const Undo = struct {
 pub const StateBoards = std.EnumArray(StateBoardIdx, u64);
 
 // Board Struct to represent the chess board
-const Board = struct {
+pub const Board = struct {
     position: [BoardSquareNum]BitBoardIdx, // var to keep track of all pieces on the board
     bitboards: std.EnumArray(BitBoardIdx, u64), // 0- empty, 1-12 pieces WP-BK, 13 - en passant
     stateBoards: StateBoards, // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
@@ -338,7 +338,10 @@ const Board = struct {
                 'Q' => self.castlePermissions |= WhiteQueenCastling,
                 'k' => self.castlePermissions |= BlackKingCastling,
                 'q' => self.castlePermissions |= BlackQueenCastling,
-                else => break,
+                else => {
+                    char += 1;
+                    break; // when we hit a dash, it means there are no castling permissions => increment chart & break
+                }
             }
 
             char += 1;
@@ -352,6 +355,8 @@ const Board = struct {
         char += 1;
         newChar = fen[char];
 
+        // std.debug.print("'{s}'\n", .{fen[char .. fen.len]});
+        // std.debug.print("{d} '{c}'\n", .{newChar, newChar});
         if (newChar != '-') {
             const file = newChar - 'a';
             char += 1;
@@ -367,7 +372,7 @@ const Board = struct {
     }
 
     // UpdateBitMasks Updates all move generation/making related bit masks
-    fn update_bitmasks(self: *Board) void {
+    pub fn update_bitmasks(self: *Board) void {
         if (self.Side == .White) {
             self.stateBoards.set(.NotMyPieces, ~(self.bitboards.get(.WP) |
                 self.bitboards.get(.WN) |
@@ -509,7 +514,7 @@ const Board = struct {
 
         var possibility: u64 = 0;
         // knight
-        const bn = self.bitboards.get(.BN);
+        var bn = self.bitboards.get(.BN);
         var i = bn & (~(bn - 1));
         while (i != 0) {
             const iLocation = @ctz(i);
@@ -526,7 +531,7 @@ const Board = struct {
         // geneation of unsafe squares will stop at the king and will not extend behind it
         const occupiedExludingKing = self.stateBoards.get(.Occupied) ^ self.bitboards.get(.WK);
         // bishop/queen
-        const qb = self.bitboards.get(.BQ) | self.bitboards.get(.BB);
+        var qb = self.bitboards.get(.BQ) | self.bitboards.get(.BB);
         i = qb & (~(qb - 1));
         while (i != 0) {
             const iLocation = @ctz(i);
@@ -537,7 +542,7 @@ const Board = struct {
         }
 
         // rook/queen
-        const qr = self.bitboards.get(.BQ) | self.bitboards.get(.BR);
+        var qr = self.bitboards.get(.BQ) | self.bitboards.get(.BR);
         i = qr & (~(qr - 1));
         while (i != 0) {
             const iLocation = @ctz(i);
@@ -555,17 +560,12 @@ const Board = struct {
     }
 
     // GetMoves Returns a struct that holds all the possible moves for a given position
-    fn GetMoves(self: *Board) defs.MoveList {
-        const moveList = defs.MoveList{
-            .Moves = [defs.MaxPositionMoves]u32{},
-            .Count = 0,
-        };
+    pub fn GetMoves(self: *Board, moveList: *defs.MoveList) void {
         if (self.Side == .White) {
-            move_gen_legal.LegalMovesWhite(self, &moveList);
+            move_gen_legal.LegalMovesWhite(self, moveList);
         } else {
-            move_gen_legal.LegalMovesBlack(self, &moveList);
+            move_gen_legal.LegalMovesBlack(self, moveList);
         }
-        return moveList;
     }
 };
 

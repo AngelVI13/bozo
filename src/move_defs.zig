@@ -176,6 +176,13 @@ pub const MoveList = struct {
     Moves: [MaxPositionMoves]u32,
     Count: u8, // number of moves on the moves list
 
+    pub fn init() MoveList {
+        return MoveList{
+            .Moves = [_]u32{0} ** MaxPositionMoves,
+            .Count = 0,
+        };
+    }
+
     // AddMove Adds move to move list and updates count
     pub fn AddMove(self: *MoveList, move: u32) void {
         self.Moves[self.Count] = move;
@@ -261,25 +268,24 @@ fn GetMoveString(alloc: Allocator, move: u32) ![]const u8 {
 // PrintMoveList prints move list
 pub fn PrintMoveList(alloc: Allocator, moveList: *MoveList) !void {
     _ = alloc;
-	std.debug.print("MoveList: %d\n", .{moveList.Count});
+    std.debug.print("MoveList: %d\n", .{moveList.Count});
 
-	for (0..moveList.Count) |index| {
-		const move = moveList.Moves[index];
-		std.debug.print("Move:%d > %s\n", .{index+1, try GetMoveString(move)});
-	}
-	std.debug.print("MoveList Total: %d\n", .{moveList.Count});
+    for (0..moveList.Count) |index| {
+        const move = moveList.Moves[index];
+        std.debug.print("Move:%d > %s\n", .{ index + 1, try GetMoveString(move) });
+    }
+    std.debug.print("MoveList Total: %d\n", .{moveList.Count});
 }
 
 pub fn GetMoveFromString(alloc: Allocator, moveList: *MoveList, moveString: []const u8) !u32 {
-	for (0..moveList.Count) |index| {
-		const move = moveList.Moves[index];
+    for (0..moveList.Count) |index| {
+        const move = moveList.Moves[index];
         const m = try GetMoveString(alloc, move);
 
-		if (std.mem.eql(m, moveString)) {
-			return move;
-		}
-	}
+        if (std.mem.eql(m, moveString)) {
+            return move;
+        }
+    }
 
-	return board.Errors.MoveNotFound;
+    return board.Errors.MoveNotFound;
 }
-

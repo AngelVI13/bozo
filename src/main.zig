@@ -1,5 +1,6 @@
 const std = @import("std");
 const board = @import("board.zig");
+const defs = @import("move_defs.zig");
 const hash = @import("hashkey.zig");
 const bitboard = @import("bitboard.zig");
 
@@ -47,4 +48,20 @@ test "parse_fen black to move" {
     try std.testing.expect(b.castlePermissions & board.WhiteQueenCastling == 0);
     try std.testing.expect(b.castlePermissions & board.BlackKingCastling != 0);
     try std.testing.expect(b.castlePermissions & board.BlackQueenCastling != 0);
+}
+
+test "GetMoves" {
+    try hash.init_hash_keys();
+
+    var b = board.new();
+    try std.testing.expectEqual(b.positionKey, 0);
+
+    try b.parse_fen(board.StartingPosition);
+
+    var moveList = defs.MoveList.init();
+    b.GetMoves(&moveList);
+
+    std.debug.print("{any}", .{moveList});
+    // std.debug.print("{any}", .{moveList});
+    // try std.testing.expectEqual(1, moveList.Count);
 }
