@@ -1,5 +1,7 @@
 const std = @import("std");
+const board = @import("board.zig");
 const Allocator = std.mem.Allocator;
+const BB = board.BitBoardIdx;
 
 // The following bitmasks represent squares starting from H1-A1 -> H8-A8. Ranks are separated by "_"
 
@@ -206,11 +208,11 @@ pub const PinRays = struct {
 
 // GetSquareString get algebraic notation of square i.e. b2, a6 from array index
 fn GetSquareString(alloc: Allocator, sq: u8) ![]const u8 {
-	const file = sq % 8;
-	const rank = 8 - (sq / 8) - 1;
+    const file = sq % 8;
+    const rank = 8 - (sq / 8) - 1;
 
-    const square = try std.fmt.allocPrint(alloc, "{c}{c}", .{'a' + file, '1' + rank});
-	return square;
+    const square = try std.fmt.allocPrint(alloc, "{c}{c}", .{ 'a' + file, '1' + rank });
+    return square;
 }
 
 test "GetSquareString" {
@@ -230,57 +232,54 @@ test "GetSquareString" {
     square = try GetSquareString(alloc, D8);
     try std.testing.expect(std.mem.eql(u8, square, "d8"));
 }
-//
-// // GetMoveString prints move in algebraic notation
-// func GetMoveString(move int) string {
-// 	// fmt.Printf("FromSq: %d, ToSq: %d, Promoted: %d\n", FromSq(move), ToSq(move), Promoted(move))
-//
-// 	fromSq := GetSquareString(FromSq(move))
-// 	toSq := GetSquareString(ToSq(move))
-//
-// 	moveStr := fromSq + toSq
-//
-// 	// if this move is a promotion, add char of the piece we promote to at the end of the move string
-// 	// i.e. if a7a8q -> we promote to Queen
-// 	pieceChar := ""
-// 	switch promoted := Promoted(move); promoted {
-// 	case WN, BN:
-// 		pieceChar = "n"
-// 	case WB, BB:
-// 		pieceChar = "b"
-// 	case WR, BR:
-// 		pieceChar = "r"
-// 	case WQ, BQ:
-// 		pieceChar = "q"
-// 	}
-// 	moveStr += pieceChar
-//
-// 	return moveStr
-// }
-//
-// // PrintMoveList prints move list
-// func PrintMoveList(moveList *MoveList) {
-// 	fmt.Println("MoveList:\n", moveList.Count)
-//
-// 	for index := 0; index < moveList.Count; index++ {
-//
-// 		move := moveList.Moves[index].Move
-// 		score := moveList.Moves[index].score
-//
-// 		fmt.Printf("Move:%d > %s (score:%d)\n", index+1, GetMoveString(move), score)
-// 	}
-// 	fmt.Printf("MoveList Total %d Moves:\n\n", moveList.Count)
-// }
-//
-// func GetMoveFromString(moveList *MoveList, moveString string) (int, error) {
-// 	for index := 0; index < moveList.Count; index++ {
-// 		move := moveList.Moves[index].Move
-//
-// 		if GetMoveString(move) == moveString {
-// 			return move, nil
-// 		}
-// 	}
-//
-// 	return 0, errors.New(fmt.Sprintf("No move matches the string: %s", moveString))
-// }
-//
+
+// GetMoveString prints move in algebraic notation
+fn GetMoveString(alloc: Allocator, move: u32) ![]const u8 {
+    // std.debug.print("FromSq: %d, ToSq: %d, Promoted: %d\n", .{FromSq(move), ToSq(move), Promoted(move)});
+
+    const fromSq = try GetSquareString(alloc, FromSq(move));
+    const toSq = try GetSquareString(alloc, ToSq(move));
+
+    var moveStr = try std.fmt.allocPrint(alloc, "{s}{s}", .{ fromSq, toSq });
+
+    // if this move is a promotion, add char of the piece we promote to at the end of the move string
+    // i.e. if a7a8q -> we promote to Queen
+    const promoted = Promoted(move);
+    const pieceChar = switch (promoted) {
+        BB.WN, BB.BN => 'n',
+        BB.WB, BB.BB => 'b',
+        BB.WR, BB.BR => 'r',
+        BB.WQ, BB.BQ => 'q',
+        else => unreachable(),
+    };
+
+    moveStr = try std.fmt.allocPrint(alloc, "{s}{c}", .{ move, pieceChar });
+
+    return move;
+}
+
+// PrintMoveList prints move list
+pub fn PrintMoveList(alloc: Allocator, moveList: *MoveList) !void {
+    _ = alloc;
+	std.debug.print("MoveList: %d\n", .{moveList.Count});
+
+	for (0..moveList.Count) |index| {
+		const move = moveList.Moves[index];
+		std.debug.print("Move:%d > %s\n", .{index+1, try GetMoveString(move)});
+	}
+	std.debug.print("MoveList Total: %d\n", .{moveList.Count});
+}
+
+pub fn GetMoveFromString(alloc: Allocator, moveList: *MoveList, moveString: []const u8) !u32 {
+	for (0..moveList.Count) |index| {
+		const move = moveList.Moves[index];
+        const m = try GetMoveString(alloc, move);
+
+		if (std.mem.eql(m, moveString)) {
+			return move;
+		}
+	}
+
+	return board.Errors.MoveNotFound;
+}
+

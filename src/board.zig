@@ -1,13 +1,15 @@
 const std = @import("std");
 const bitboard = @import("bitboard.zig");
 const move_gen = @import("move_generation.zig");
+const move_gen_legal = @import("move_generation_legal.zig");
 const defs = @import("move_defs.zig");
 const Allocator = std.mem.Allocator;
 
-const Errors = error{
+pub const Errors = error{
     FenError,
     UnknownSideToMove,
     FileOutOfBounds,
+    MoveNotFound,
 };
 
 // StartingPosition 8x8 representation of normal chess starting position
@@ -69,7 +71,7 @@ var IsSlider = [_]bool{
     false, // EP,
 };
 
-const StateBoardIdx = enum(u8) {
+pub const StateBoardIdx = enum(u8) {
     // NotMyPieces index to bitboard with all enemy and empty squares
     NotMyPieces,
 
@@ -166,11 +168,13 @@ const Undo = struct {
     positionKey: u64,
 };
 
+pub const StateBoards = std.EnumArray(StateBoardIdx, u64);
+
 // Board Struct to represent the chess board
 const Board = struct {
     position: [BoardSquareNum]BitBoardIdx, // var to keep track of all pieces on the board
     bitboards: std.EnumArray(BitBoardIdx, u64), // 0- empty, 1-12 pieces WP-BK, 13 - en passant
-    stateBoards: std.EnumArray(StateBoardIdx, u64), // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
+    stateBoards: StateBoards, // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
     Side: Color,
     castlePermissions: u8,
     ply: u16, // how many half moves have been made
@@ -549,6 +553,20 @@ const Board = struct {
         unsafe |= possibility;
         return unsafe;
     }
+
+    // GetMoves Returns a struct that holds all the possible moves for a given position
+    fn GetMoves(self: *Board) defs.MoveList {
+        const moveList = defs.MoveList{
+            .Moves = [defs.MaxPositionMoves]u32{},
+            .Count = 0,
+        };
+        if (self.Side == .White) {
+            move_gen_legal.LegalMovesWhite(self, &moveList);
+        } else {
+            move_gen_legal.LegalMovesBlack(self, &moveList);
+        }
+        return moveList;
+    }
 };
 
 pub fn new() Board {
@@ -566,15 +584,3 @@ pub fn new() Board {
     b.reset();
     return b;
 }
-
-//
-// // GetMoves Returns a struct that holds all the possible moves for a given position
-// func (board *Board) GetMoves() (moveList MoveList) {
-// 	if board.Side == White {
-// 		board.LegalMovesWhite(&moveList)
-// 	} else {
-// 		board.LegalMovesBlack(&moveList)
-// 	}
-// 	return moveList
-// }
-//
