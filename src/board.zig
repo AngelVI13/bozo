@@ -169,11 +169,12 @@ const Undo = struct {
 };
 
 pub const StateBoards = std.EnumArray(StateBoardIdx, u64);
+pub const BitBoards = std.EnumArray(BitBoardIdx, u64);
 
 // Board Struct to represent the chess board
 pub const Board = struct {
     position: [BoardSquareNum]BitBoardIdx, // var to keep track of all pieces on the board
-    bitboards: std.EnumArray(BitBoardIdx, u64), // 0- empty, 1-12 pieces WP-BK, 13 - en passant
+    bitboards: BitBoards, // 0- empty, 1-12 pieces WP-BK, 13 - en passant
     stateBoards: StateBoards, // bitboards representing a state i.e. EnemyPieces, Empty, Occupied etc.
     Side: Color,
     castlePermissions: u8,
@@ -341,7 +342,7 @@ pub const Board = struct {
                 else => {
                     char += 1;
                     break; // when we hit a dash, it means there are no castling permissions => increment chart & break
-                }
+                },
             }
 
             char += 1;
@@ -413,7 +414,7 @@ pub const Board = struct {
             self.stateBoards.set(.EnemyPawns, self.bitboards.get(.BP));
 
             self.stateBoards.set(.Empty, ~self.stateBoards.get(.Occupied));
-            self.stateBoards.set(.Unsafe, self.unsafeForWhite());
+            self.stateBoards.set(.Unsafe, move_gen.unsafeForWhite(&self.bitboards, &self.stateBoards));
         } else {
             self.stateBoards.set(.NotMyPieces, ~(self.bitboards.get(.BP) |
                 self.bitboards.get(.BN) |
@@ -454,126 +455,27 @@ pub const Board = struct {
             self.stateBoards.set(.EnemyPawns, self.bitboards.get(.WP));
 
             self.stateBoards.set(.Empty, ~self.stateBoards.get(.Occupied));
-            self.stateBoards.set(.Unsafe, self.unsafeForBlack());
+            self.stateBoards.set(.Unsafe, move_gen.unsafeForBlack(&self.bitboards, &self.stateBoards));
         }
-    }
-
-    pub fn unsafeForBlack(self: *Board) u64 {
-        var unsafe: u64 = 0;
-        // pawn
-        unsafe = ((self.bitboards.get(.WP) >> 7) & (~defs.FileA)); // pawn capture right
-        unsafe |= ((self.bitboards.get(.WP) >> 9) & (~defs.FileH)); // pawn capture left
-
-        var possibility: u64 = 0;
-        // knight
-        var wn = self.bitboards.get(.WN);
-        var i = wn & (~(wn - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = KnightMoves[iLocation];
-            unsafe |= possibility;
-            wn &= (~i);
-            i = wn & (~(wn - 1));
-        }
-
-        // sliding pieces
-        const occupiedExludingKing = self.stateBoards.get(.Occupied) ^ self.bitboards.get(.BK);
-        // bishop/queen
-        var qb = self.bitboards.get(.WQ) | self.bitboards.get(.WB);
-        i = qb & (~(qb - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = move_gen.diagonal_and_antidiagonal_moves(iLocation, occupiedExludingKing);
-            unsafe |= possibility;
-            qb &= (~i);
-            i = qb & (~(qb - 1));
-        }
-
-        // rook/queen
-        var qr = self.bitboards.get(.WQ) | self.bitboards.get(.WR);
-        i = qr & (~(qr - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = move_gen.horizontal_and_vertical_moves(iLocation, occupiedExludingKing);
-            unsafe |= possibility;
-            qr &= (~i);
-            i = qr & (~(qr - 1));
-        }
-
-        // king
-        const iLocation = @ctz(self.bitboards.get(.WK));
-        possibility = KingMoves[iLocation];
-        unsafe |= possibility;
-        return unsafe;
-    }
-
-    pub fn unsafeForWhite(self: *Board) u64 {
-        // pawn
-        var unsafe: u64 = ((self.bitboards.get(.BP) << 7) & (~defs.FileH)); // pawn capture right
-        unsafe |= ((self.bitboards.get(.BP) << 9) & (~defs.FileA)); // pawn capture left
-
-        var possibility: u64 = 0;
-        // knight
-        var bn = self.bitboards.get(.BN);
-        var i = bn & (~(bn - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = KnightMoves[iLocation];
-            unsafe |= possibility;
-            bn &= (~i);
-            i = bn & (~(bn - 1));
-        }
-
-        // sliding pieces
-        // when calculating unsafe squares for a given colour we need to exclude the
-        // current side's king because if an enemy queen is attacking our king,
-        // the squares behind the king are also unsafe, however, when the king is included
-        // geneation of unsafe squares will stop at the king and will not extend behind it
-        const occupiedExludingKing = self.stateBoards.get(.Occupied) ^ self.bitboards.get(.WK);
-        // bishop/queen
-        var qb = self.bitboards.get(.BQ) | self.bitboards.get(.BB);
-        i = qb & (~(qb - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = move_gen.diagonal_and_antidiagonal_moves(iLocation, occupiedExludingKing);
-            unsafe |= possibility;
-            qb &= (~i);
-            i = qb & (~(qb - 1));
-        }
-
-        // rook/queen
-        var qr = self.bitboards.get(.BQ) | self.bitboards.get(.BR);
-        i = qr & (~(qr - 1));
-        while (i != 0) {
-            const iLocation = @ctz(i);
-            possibility = move_gen.horizontal_and_vertical_moves(iLocation, occupiedExludingKing);
-            unsafe |= possibility;
-            qr &= (~i);
-            i = qr & (~(qr - 1));
-        }
-
-        // king
-        const iLocation = @ctz(self.bitboards.get(.BK));
-        possibility = KingMoves[iLocation];
-        unsafe |= possibility;
-        return unsafe;
     }
 
     // GetMoves Returns a struct that holds all the possible moves for a given position
-    pub fn GetMoves(self: *Board, moveList: *defs.MoveList) void {
+    pub fn GetMoves(self: *Board) defs.MoveList {
+        var moveList = defs.MoveList.init();
         if (self.Side == .White) {
-            move_gen_legal.LegalMovesWhite(self, moveList);
+            move_gen_legal.LegalMovesWhite(self, &moveList);
         } else {
-            move_gen_legal.LegalMovesBlack(self, moveList);
+            move_gen_legal.LegalMovesBlack(self, &moveList);
         }
+        return moveList;
     }
 };
 
 pub fn new() Board {
     var b = Board{
         .position = undefined,
-        .bitboards = std.EnumArray(BitBoardIdx, u64).initFill(0),
-        .stateBoards = std.EnumArray(StateBoardIdx, u64).initFill(0),
+        .bitboards = BitBoards.initFill(0),
+        .stateBoards = StateBoards.initFill(0),
         .Side = Color.White,
         .castlePermissions = 0,
         .ply = 0,

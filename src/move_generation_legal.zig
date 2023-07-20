@@ -9,17 +9,14 @@ const BB = board.BitBoardIdx;
 const Allocator = std.mem.Allocator;
 
 fn getCheckers(alloc: Allocator, color: board.Color, stateBoards: board.StateBoards, king: u64) !u64 {
+    _ = alloc;
     var checkers: u64 = 0;
 
     const kingIdx = @ctz(king);
 
     const horizontalMoves = gen.horizontal_and_vertical_moves(kingIdx, stateBoards.get(SB.Occupied));
-    try bitboard.draw(alloc, horizontalMoves);
-    try bitboard.draw(alloc, stateBoards.get(SB.EnemyRooksQueens));
     checkers |= horizontalMoves & stateBoards.get(SB.EnemyRooksQueens);
     const diagonalMoves = gen.diagonal_and_antidiagonal_moves(kingIdx, stateBoards.get(SB.Occupied));
-    try bitboard.draw(alloc, diagonalMoves);
-    try bitboard.draw(alloc, stateBoards.get(SB.EnemyBishopsQueens));
     checkers |= diagonalMoves & stateBoards.get(SB.EnemyBishopsQueens);
 
     // check if pawns are attacking the king
@@ -68,8 +65,9 @@ test "GetCheckers" {
     b.update_bitmasks();
 
     const bb = try getCheckers(alloc, b.Side, b.stateBoards, b.bitboards.get(BB.WK));
-    try bitboard.draw(alloc, bb);
-    try std.testing.expect(bb != 0);
+
+    const numCheckers: u8 = @popCount(bb);
+    try std.testing.expectEqual(@as(u8, 2), numCheckers);
 }
 
 // // getCheckerSliderRaysToKing Get diagonal OR horizontal rays to a square. Ray does not include king or checker

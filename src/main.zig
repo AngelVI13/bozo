@@ -54,14 +54,9 @@ test "GetMoves" {
     try hash.init_hash_keys();
 
     var b = board.new();
-    try std.testing.expectEqual(b.positionKey, 0);
-
     try b.parse_fen(board.StartingPosition);
 
-    var moveList = defs.MoveList.init();
-    b.GetMoves(&moveList);
+    var moveList = b.GetMoves();
 
-    std.debug.print("{any}", .{moveList});
-    // std.debug.print("{any}", .{moveList});
-    // try std.testing.expectEqual(1, moveList.Count);
+    try std.testing.expectEqual(@as(u8, 1), moveList.Count);
 }
