@@ -6,10 +6,8 @@ const gen = @import("move_generation.zig");
 const hash = @import("hashkey.zig");
 const SB = board.StateBoardIdx;
 const BB = board.BitBoardIdx;
-const Allocator = std.mem.Allocator;
 
-fn getCheckers(alloc: Allocator, color: board.Color, stateBoards: board.StateBoards, king: u64) !u64 {
-    _ = alloc;
+fn getCheckers(color: board.Color, stateBoards: board.StateBoards, king: u64) u64 {
     var checkers: u64 = 0;
 
     const kingIdx = @ctz(king);
@@ -54,9 +52,128 @@ fn getCheckers(alloc: Allocator, color: board.Color, stateBoards: board.StateBoa
 }
 
 test "GetCheckers" {
+    try hash.init_hash_keys();
+
+    var b = board.new();
+    try b.parse_fen("k7/8/8/4b3/q7/2R5/2n5/K2Nr3 w - - 0 1");
+    b.update_bitmasks();
+
+    const bb = getCheckers(b.Side, b.stateBoards, b.bitboards.get(BB.WK));
+
+    const numCheckers: u8 = @popCount(bb);
+    try std.testing.expectEqual(@as(u8, 2), numCheckers);
+}
+
+// getCheckerSliderRaysToKing Get diagonal OR horizontal rays to a square. Ray does not include king or checker
+fn getCheckerSliderRaysToKing(kingBitboard: u64, checkerBitboard: u64) u64 {
+	var rays: u64 = 0;
+	const kingIdx = @ctz(kingBitboard);
+
+	rays = 0;
+	var newSquare = kingIdx;
+	// generate file ray to the right
+	while ((rays&checkerBitboard == 0) and ((newSquare+1)%8 != 0)) {
+		newSquare += 1;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate file ray to the left
+	while ((rays&checkerBitboard == 0) and ((newSquare)%8 != 0)) {
+		newSquare -= 1;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate rank ray upwards
+	while ((rays&checkerBitboard == 0) and ((newSquare-8) >= 0)) {
+		newSquare -= 8;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate rank ray down
+	while ((rays&checkerBitboard == 0) and ((newSquare+8) < 64)) {
+		newSquare += 8;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate left diagonal down
+	while ((rays&checkerBitboard == 0) and ((newSquare+9) < 64)) {
+		newSquare += 9;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate left diagonal up
+	while ((rays&checkerBitboard == 0) and ((newSquare-9) >= 0)) {
+		newSquare -= 9;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate right diagonal down
+	while ((rays&checkerBitboard == 0) and ((newSquare+7) < 64)) {
+		newSquare += 7;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	rays = 0;
+	newSquare = kingIdx;
+	// generate left diagonal up
+	while ((rays&checkerBitboard == 0) and ((newSquare-7) >= 0)) {
+		newSquare -= 7;
+		rays |= (@as(u64, 1) << @intCast(u6, newSquare));
+		if (rays&checkerBitboard != 0) {
+			rays ^= checkerBitboard; // remove checker square from ray and return rays
+			return rays;
+		}
+	}
+
+	// if we haven't returned by now -> couldn't generate rays
+	unreachable();
+}
+
+test "getCheckerSliderRaysToKing" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
+    _ = alloc;
 
     try hash.init_hash_keys();
 
@@ -64,140 +181,36 @@ test "GetCheckers" {
     try b.parse_fen("k7/8/8/4b3/q7/2R5/2n5/K2Nr3 w - - 0 1");
     b.update_bitmasks();
 
-    const bb = try getCheckers(alloc, b.Side, b.stateBoards, b.bitboards.get(BB.WK));
+    const checkerBB = getCheckers(b.Side, b.stateBoards, b.bitboards.get(BB.WK));
+    const rays = getCheckerSliderRaysToKing(b.bitboards.get(BB.WK), checkerBB);
 
-    const numCheckers: u8 = @popCount(bb);
-    try std.testing.expectEqual(@as(u8, 2), numCheckers);
+    const numCheckers: u8 = @popCount(rays);
+    try std.testing.expectEqual(@as(u8, 3), numCheckers);
 }
 
-// // getCheckerSliderRaysToKing Get diagonal OR horizontal rays to a square. Ray does not include king or checker
-// func getCheckerSliderRaysToKing(kingBitboard uint64, checkerBitboard uint64) uint64 {
-// 	var rays uint64
-// 	kingIdx := bits.TrailingZeros64(kingBitboard)
-//
-// 	rays = 0
-// 	newSquare := kingIdx
-// 	// generate file ray to the right
-// 	for (rays&checkerBitboard == 0) && (newSquare+1)%8 != 0 {
-// 		newSquare++
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate file ray to the left
-// 	for (rays&checkerBitboard == 0) && (newSquare)%8 != 0 {
-// 		newSquare--
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate rank ray upwards
-// 	for (rays&checkerBitboard == 0) && (newSquare-8) >= 0 {
-// 		newSquare -= 8
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate rank ray down
-// 	for (rays&checkerBitboard == 0) && (newSquare+8) < 64 {
-// 		newSquare += 8
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate left diagonal down
-// 	for (rays&checkerBitboard == 0) && (newSquare+9) < 64 {
-// 		newSquare += 9
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate left diagonal up
-// 	for (rays&checkerBitboard == 0) && (newSquare-9) >= 0 {
-// 		newSquare -= 9
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate right diagonal down
-// 	for (rays&checkerBitboard == 0) && (newSquare+7) < 64 {
-// 		newSquare += 7
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	rays = 0
-// 	newSquare = kingIdx
-// 	// generate left diagonal up
-// 	for (rays&checkerBitboard == 0) && (newSquare-7) >= 0 {
-// 		newSquare -= 7
-// 		rays |= (1 << newSquare)
-// 		if rays&checkerBitboard != 0 {
-// 			rays ^= checkerBitboard // remove checker square from ray and return rays
-// 			return rays
-// 		}
-// 	}
-//
-// 	// if we haven't returned by now -> couldn't generate rays
-// 	panic("Could not generate rays.")
-// }
-//
-// // getPinnedPieceRays Get diagonal and horizontal rays that represent a pinned piece and its only available moves.
-// // Ray does not include the pinned king square
-// func (board *Board) getPinnedPieceRays(kingBitboard uint64, pinRays *PinRays) {
-// 	var ray uint64
-// 	var numPinnedPieces int
-//
-// 	kingIdx := bits.TrailingZeros64(kingBitboard)
-// 	enemyRooksQueens := board.stateBoards[EnemyRooksQueens]
-// 	enemyBishopsQueens := board.stateBoards[EnemyBishopsQueens]
-// 	enemySide := board.Side ^ 1
-// 	// enemy kings, knights and pawns are always pin blocking pieces
-// 	blockingPieces := board.stateBoards[MyPieces] | board.stateBoards[EnemyKnights] | board.stateBoards[EnemyPawns] | board.bitboards[enemySide*6+WK]
-// 	enemyBishops := board.bitboards[enemySide*6+WB]
-// 	enemyRooks := board.bitboards[enemySide*6+WR]
-//
-// 	ray = 0
-// 	newSquare := kingIdx
-// 	numPinnedPieces = 0
-// 	// when calculating horizontal & vertical pins - enemy bishops are blocking pieces
-// 	blockingPieces ^= enemyBishops
-// 	// generate file ray to the right
-// 	// if there are more than 1 piece between my king and an enemy slider
-// 	// -> not a pinned piece
+// getPinnedPieceRays Get diagonal and horizontal rays that represent a pinned piece and its only available moves.
+// Ray does not include the pinned king square
+fn getPinnedPieceRays(b: *board.Board, kingBitboard: u64, pinRays: *PinRays) void {
+	var ray: u64 = 0;
+	var numPinnedPieces: usize = 0;
+
+	const kingIdx = @ctz(kingBitboard);
+	const enemyRooksQueens = b.stateBoards.get(SB.EnemyRooksQueens);
+	const enemyBishopsQueens = b.stateBoards.get(SB.EnemyBishopsQueens);
+	const enemySide = b.Side ^ 1;
+	// enemy kings, knights and pawns are always pin blocking pieces
+	const blockingPieces = b.stateBoards.get(SB.MyPieces) | b.stateBoards.get(SB.EnemyKnights) | b.stateBoards.get(SB.EnemyPawns) | b.bitboards.get(@as(BB, enemySide*6+BB.WK));
+	const enemyBishops = b.bitboards.get(@as(BB, enemySide*6+BB.WB));
+	const enemyRooks = b.bitboards.get(@as(BB, enemySide*6+BB.WR));
+
+	ray = 0;
+	var newSquare = kingIdx;
+	numPinnedPieces = 0;
+	// when calculating horizontal & vertical pins - enemy bishops are blocking pieces
+	blockingPieces ^= enemyBishops;
+	// generate file ray to the right
+	// if there are more than 1 piece between my king and an enemy slider
+	// -> not a pinned piece
 // 	for (ray&enemyRooksQueens == 0) && (newSquare+1)%8 != 0 && numPinnedPieces <= 1 {
 // 		newSquare++
 // 		ray |= (1 << newSquare)
@@ -205,13 +218,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -223,13 +236,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -241,13 +254,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -259,13 +272,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -281,13 +294,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -299,13 +312,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -317,13 +330,13 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
-//
+// 
 // 	ray = 0
 // 	newSquare = kingIdx
 // 	numPinnedPieces = 0
@@ -335,14 +348,14 @@ test "GetCheckers" {
 // 			pinRays.AddRay(ray)
 // 			break
 // 		}
-//
+// 
 // 		if ray&blockingPieces != 0 {
 // 			numPinnedPieces++
 // 			blockingPieces ^= ray & blockingPieces // remove identified piece from myPieces
 // 		}
 // 	}
 // }
-//
+
 // LegalMovesWhite Generates all legal moves for white
 // todo unify legal moves white and black into 1 method
 pub fn LegalMovesWhite(b: *board.Board, moveList: *defs.MoveList) void {
