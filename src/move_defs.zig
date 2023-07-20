@@ -195,6 +195,13 @@ pub const PinRays = struct {
     Rays: [8]u64, // an array with max possible pinned rays
     Count: u8, // number of generated pin rays in the struct
 
+    pub fn init() PinRays {
+        return PinRays{
+            .Rays = [_]u64{0} ** 8,
+            .Count = 0,
+        };
+    }
+
     // AddRay Adds ray to pin rays and updates count
     pub fn AddRay(self: *PinRays, ray: u64) void {
         self.Rays[self.Count] = ray;
