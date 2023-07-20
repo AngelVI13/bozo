@@ -9,8 +9,8 @@ pub fn horizontal_and_vertical_moves(square: u8, occupied: u64) u64 {
     // TODO: more elegant way to handle those casts
     const binarySquare: u64 = @as(u64, 1) << @intCast(u6, square);
     const fileMaskIdx = square % 8;
-    const possibilitiesHorizontal = (occupied -% 2 * binarySquare) ^ @byteSwap(@byteSwap(occupied) -% 2 * @byteSwap(binarySquare));
-    const possibilitiesVertical = ((occupied & defs.FileMasks8[fileMaskIdx]) -% (2 * binarySquare)) ^ @byteSwap(@byteSwap(occupied & defs.FileMasks8[fileMaskIdx]) -% (2 * @byteSwap(binarySquare)));
+    const possibilitiesHorizontal = (occupied -% 2 *% binarySquare) ^ @byteSwap(@byteSwap(occupied) -% 2 *% @byteSwap(binarySquare));
+    const possibilitiesVertical = ((occupied & defs.FileMasks8[fileMaskIdx]) -% (2 *% binarySquare)) ^ @byteSwap(@byteSwap(occupied & defs.FileMasks8[fileMaskIdx]) -% (2 *% @byteSwap(binarySquare)));
     return (possibilitiesHorizontal & defs.RankMasks8[square / 8]) | (possibilitiesVertical & defs.FileMasks8[fileMaskIdx]);
 }
 
@@ -39,7 +39,7 @@ pub fn unsafeForBlack(bitboards: *BitBoards, stateBoards: *StateBoards) u64 {
         possibility = board.KnightMoves[iLocation];
         unsafe |= possibility;
         wn &= (~i);
-        i = wn & (~(wn - 1));
+        i = wn & (~(wn -% 1));
     }
 
     // sliding pieces
@@ -52,7 +52,7 @@ pub fn unsafeForBlack(bitboards: *BitBoards, stateBoards: *StateBoards) u64 {
         possibility = diagonal_and_antidiagonal_moves(iLocation, occupiedExludingKing);
         unsafe |= possibility;
         qb &= (~i);
-        i = qb & (~(qb - 1));
+        i = qb & (~(qb -% 1));
     }
 
     // rook/queen
@@ -63,7 +63,7 @@ pub fn unsafeForBlack(bitboards: *BitBoards, stateBoards: *StateBoards) u64 {
         possibility = horizontal_and_vertical_moves(iLocation, occupiedExludingKing);
         unsafe |= possibility;
         qr &= (~i);
-        i = qr & (~(qr - 1));
+        i = qr & (~(qr -% 1));
     }
 
     // king

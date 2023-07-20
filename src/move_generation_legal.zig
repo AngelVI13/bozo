@@ -6,6 +6,7 @@ const gen = @import("move_generation.zig");
 const hash = @import("hashkey.zig");
 const SB = board.StateBoardIdx;
 const BB = board.BitBoardIdx;
+const Allocator = std.mem.Allocator;
 
 const TestPosition1 = "k7/8/8/4b3/q7/2R5/2n5/K2Nr3 w - - 0 1";
 
@@ -972,25 +973,55 @@ pub fn LegalMovesBlack(b: *board.Board, moveList: *defs.MoveList) void {
 // 	}
 // }
 //
-// func (board *Board) possibleCastleBlack(moveList *MoveList) {
-// 	// if no castling is allowed -> return early
-// 	if (board.castlePermissions&BlackKingCastling) == 0 &&
-// 		(board.castlePermissions&BlackQueenCastling) == 0 {
-// 		return
-// 	}
-//
-// 	empty := board.stateBoards[Empty]
-// 	unsafe := board.stateBoards[Unsafe]
-//
-// 	kingIdx := bits.TrailingZeros64(board.bitboards[BK])
-//
-// 	var queenSideSqBitboard uint64 = 1<<(kingIdx-1) | 1<<(kingIdx-2)
-// 	var kingSideSqBitboard uint64 = 1<<(kingIdx+1) | 1<<(kingIdx+2)
-//
-// 	if (board.castlePermissions&BlackKingCastling) != 0 && (bits.OnesCount64((kingSideSqBitboard|board.bitboards[BK]) & ^unsafe) == 3) && (bits.OnesCount64(empty&kingSideSqBitboard) == 2) {
-// 		moveList.AddMove(GetMoveInt(E8, G8, NoPiece, NoPiece, MoveFlagCastle))
-// 	}
-// 	if (board.castlePermissions&BlackQueenCastling) != 0 && (bits.OnesCount64((queenSideSqBitboard|board.bitboards[BK]) & ^unsafe) == 3) && (bits.OnesCount64(empty&(queenSideSqBitboard|1<<(kingIdx-3))) == 3) {
-// 		moveList.AddMove(GetMoveInt(E8, C8, NoPiece, NoPiece, MoveFlagCastle))
-// 	}
-// }
+fn possibleCastleBlack(b: *board.Board, moveList: *defs.MoveList) void {
+    // if no castling is allowed -> return early
+    if ((b.castlePermissions & board.BlackKingCastling) == 0 and
+        (b.castlePermissions & board.BlackQueenCastling) == 0)
+    {
+        return;
+    }
+
+    const empty = b.stateBoards.get(SB.Empty);
+    const unsafe = b.stateBoards.get(SB.Unsafe);
+
+    const kingIdx = @ctz(b.bitboards.get(BB.BK));
+
+    var queenSideSqBitboard: u64 = @as(u64, 1) << @intCast(u6, kingIdx - 1) | @as(u64, 1) << @intCast(u6, kingIdx - 2);
+    var kingSideSqBitboard: u64 = @as(u64, 1) << @intCast(u6, kingIdx + 1) | @as(u64, 1) << @intCast(u6, kingIdx + 2);
+
+    const noPiece = 0;
+    if ((b.castlePermissions & board.BlackKingCastling) != 0 and (@popCount((kingSideSqBitboard | b.bitboards.get(BB.BK)) & ~unsafe) == 3) and (@popCount(empty & kingSideSqBitboard) == 2)) {
+        moveList.AddMove(defs.GetMoveInt(defs.E8, defs.G8, noPiece, noPiece, defs.MoveFlagCastle));
+    }
+    if ((b.castlePermissions & board.BlackQueenCastling) != 0 and (@popCount((queenSideSqBitboard | b.bitboards.get(BB.BK)) & ~unsafe) == 3) and (@popCount(empty & (queenSideSqBitboard | @as(u64, 1) << @intCast(u6, kingIdx - 3))) == 3)) {
+        moveList.AddMove(defs.GetMoveInt(defs.E8, defs.C8, noPiece, noPiece, defs.MoveFlagCastle));
+    }
+}
+
+test "possibleCastleBlack" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    _ = alloc;
+
+    try hash.init_hash_keys();
+
+    var b = board.new();
+
+    const pos = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1";
+    try b.parse_fen(pos);
+    b.update_bitmasks();
+
+    var moveList = defs.MoveList.init();
+    possibleCastleBlack(&b, &moveList);
+
+    try std.testing.expectEqual(@as(u8, 2), moveList.Count);
+    const kingside = moveList.Moves[0];
+    try std.testing.expectEqual(@as(u32, defs.E8), defs.FromSq(kingside));
+    try std.testing.expectEqual(@as(u32, defs.G8), defs.ToSq(kingside));
+
+    const queenside = moveList.Moves[1];
+    try std.testing.expectEqual(@as(u32, defs.E8), defs.FromSq(queenside));
+    try std.testing.expectEqual(@as(u32, defs.C8), defs.ToSq(queenside));
+}
+
